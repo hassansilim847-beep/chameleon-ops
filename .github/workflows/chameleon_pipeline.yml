@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apify LinkedIn discovery (MENA, fresh 7d)
+      - name: Apify LinkedIn discovery
         continue-on-error: true
         env:
           APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
@@ -40,11 +40,8 @@ jobs:
           q=json.load(open("jobs_queue.json", encoding="utf-8"))
           print(f"queue: {len(q)} jobs")
           open("summary.txt","w",encoding="utf-8").write(
-            "🦎 اكتشاف الصباح — طابور: %d وظيفة
-
-" % len(q) +
-            "
-".join("• %s @ %s [%s]" % (j.get("title"), j.get("company"), j.get("location"))
+            "🦎 اكتشاف الصباح — طابور: %d وظيفة\n\n" % len(q) +
+            "\n".join("• %s @ %s [%s]" % (j.get("title"), j.get("company"), j.get("location"))
                      for j in q[:10] if j.get("title")))
           EOF
           cat summary.txt
