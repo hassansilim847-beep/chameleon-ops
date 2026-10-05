@@ -1,0 +1,52 @@
+name: Daily Job Discovery
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 07:00 Cairo (UTC+2, no DST)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'apify mode: mena | remote | country'
+        default: 'mena'
+      rows:
+        description: 'rows per run'
+        default: '20'
+permissions:
+  contents: write
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apify LinkedIn discovery
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+        run: |
+          MODE="${{ github.event.inputs.mode || 'mena' }}"
+          ROWS="${{ github.event.inputs.rows || '20' }}"
+          python3 apify_jobs.py "Marketing Manager" "$MODE" "$ROWS"
+      - name: Free APIs merge (Remotive/Jobicy)
+        run: python3 free_apis_jobs.py
+      - name: Morning summary
+        run: |
+          python3 - << 'EOF'
+          import json
+          q=json.load(open("jobs_queue.json", encoding="utf-8"))
+          print(f"queue: {len(q)} jobs")
+          open("summary.txt","w",encoding="utf-8").write(
+            "🦎 اكتشاف الصباح — طابور: %d وظيفة\n\n" % len(q) +
+            "\n".join("• %s @ %s [%s]" % (j.get("title"), j.get("company"), j.get("location"))
+                     for j in q[:10] if j.get("title")))
+          EOF
+          cat summary.txt
+      - name: Notify bots (optional)
+        env:
+          TELEGRAM_BOT_TOKEN_3: ${{ secrets.TELEGRAM_BOT_TOKEN_3 }}
+          TELEGRAM_BOT_TOKEN_4: ${{ secrets.TELEGRAM_BOT_TOKEN_4 }}
+        run: python3 notify_bots.py apps "$(cat summary.txt)" || echo "notify skipped"
+      - name: Commit queue
+        run: |
+          git config user.name "chameleon-bot"
+          git config user.email "chameleon-bot@users.noreply.github.com"
+          git add jobs_queue.json
+          git commit -m "daily queue: $(date -u +%F)" || echo "no changes"
+          git push
