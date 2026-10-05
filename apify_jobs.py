@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Chameleon Job Discovery - Apify LinkedIn Jobs -> scored queue (jobs_queue.json)
-Usage: python3 apify_jobs.py "Marketing Manager" "Egypt" [rows]
-Scoring (approved policy #12): freshness-first + role-match keywords from bank.
-Output: jobs_queue.json (sorted), prints top summary.
+Chameleon Job Discovery v2 - Apify LinkedIn (MENA+remote, FRESH <=7d only)
+Usage: python3 apify_jobs.py "<keyword>" <mode: mena|remote|Country> [total_rows]
+Overwrites apify section of jobs_queue.json. Old/stale jobs are dropped (user rule).
 """
 import json, os, sys, time, urllib.request
 
@@ -11,18 +10,18 @@ TOKEN = os.environ.get("APIFY_API_TOKEN", "")
 ACTOR = "curious_coder~linkedin-jobs-scraper"
 MATCH = ["marketing", "digital", "community", "content", "brand", "performance",
          "social media", "growth", "crm", "b2b", "media", "partnership", "communications"]
-
 MENA = ["Egypt","United Arab Emirates","Saudi Arabia","Qatar","Kuwait","Oman","Bahrain","Jordan","Lebanon","Iraq","Yemen","Palestine","Libya","Morocco","Algeria","Tunisia","Sudan"]
+
 title = sys.argv[1] if len(sys.argv) > 1 else "Marketing Manager"
 mode = sys.argv[2] if len(sys.argv) > 2 else "mena"
 if mode == "mena":
     LOCS = MENA
 elif mode == "remote":
-    LOCS = ["Remote", "Worldwide"]
+    LOCS = ["Remote"]
 else:
     LOCS = [mode]
-rows = int(sys.argv[3]) if len(sys.argv) > 3 else 20
-rows = max(3, rows // len(LOCS))
+total = int(sys.argv[3]) if len(sys.argv) > 3 else 340
+rows = max(3, total // len(LOCS))
 
 def api(url, data=None):
     req = urllib.request.Request(url, data=json.dumps(data).encode() if data else None,
@@ -30,47 +29,71 @@ def api(url, data=None):
                                           "Content-Type": "application/json"})
     return json.loads(urllib.request.urlopen(req, timeout=180).read())
 
+# launch one actor run per location (concurrent), fresh jobs only
+runs = []
 for loc in LOCS:
-    r = api(f"https://api.apify.com/v2/acts/{ACTOR}/runs", {"title": title, "location": loc, "rows": rows})
-    print("RUN", loc, r["data"]["id"])
-while True:
-    time.sleep(10)
-    st = api(f"https://api.apify.com/v2/actor-runs/{run_id}")["data"]["status"]
-    print("status:", st)
-    if st in ("SUCCEEDED", "FAILED", "ABORTED"):
-        break
-if st != "SUCCEEDED":
-    print("RUN_FAILED")
-    sys.exit(1)
+    try:
+        r = api("https://api.apify.com/v2/acts/%s/runs" % ACTOR,
+                {"title": title, "location": loc, "rows": rows, "publishedAt": "r604800"})
+        runs.append((loc, r["data"]["id"]))
+        print("RUN", loc, r["data"]["id"])
+    except Exception as e:
+        print("SKIP", loc, repr(e)[:150])
 
-items = api(f"https://api.apify.com/v2/actor-runs/{run_id}/dataset/items?clean=true&format=json")
-if isinstance(items, dict):
-    items = items.get("data", {}).get("items", items.get("items", []))
+items_all = []
+for loc, rid in runs:
+    st = None
+    for _ in range(90):
+        time.sleep(10)
+        st = api("https://api.apify.com/v2/actor-runs/%s" % rid)["data"]["status"]
+        if st in ("SUCCEEDED", "FAILED", "ABORTED"):
+            break
+    if st != "SUCCEEDED":
+        print("FAILED", loc, st)
+        continue
+    items = api("https://api.apify.com/v2/actor-runs/%s/dataset/items?clean=true&format=json" % rid)
+    if isinstance(items, dict):
+        items = items.get("data", {}).get("items", items.get("items", []))
+    print("OK", loc, len(items))
+    items_all.extend(items)
 
-out = []
-for j in items:
+now = time.time()
+seen, out = set(), []
+for j in items_all:
     url = j.get("jobUrl") or j.get("url") or ""
+    if not url or url in seen:
+        continue
+    seen.add(url)
+    posted = str(j.get("postedDate") or j.get("postedAt") or "")
+    ts = None
+    try:
+        ts = time.mktime(time.strptime(posted[:19], "%Y-%m-%dT%H:%M:%S"))
+    except Exception:
+        try:
+            ts = float(posted)
+        except Exception:
+            ts = None
+    if ts is not None and (now - ts) / 86400.0 > 7:
+        continue  # drop anything older than 7 days
     desc = (j.get("description") or "")[:3000]
     text = (str(j.get("title", "")) + " " + desc).lower()
     score = 0
     hits = [m for m in MATCH if m in text]
     score += min(2 * len(hits), 8)
-    posted = str(j.get("postedDate") or j.get("postedAt") or "")
-    if posted:
-        try:
-            ts = time.mktime(time.strptime(posted[:19], "%Y-%m-%dT%H:%M:%S"))
-            days = (time.time() - ts) / 86400
-            score += 3 if days < 1 else (2 if days < 3 else (1 if days < 7 else 0))
-        except Exception:
-            pass
+    if ts is not None:
+        days = (now - ts) / 86400.0
+        score += 3 if days < 1 else (2 if days < 3 else 1)
+    remote = ("remote" in text) or ("wfh" in text) or ("work from home" in text) or ("home office" in text)
+    if remote:
+        score += 2
     out.append({"title": j.get("title"), "company": j.get("companyName") or j.get("company"),
                 "location": j.get("location"), "url": url, "posted": posted,
                 "match_score": score, "source": "apify/linkedin",
-                "easy_apply": "?", "remote": "remote" in text or "عن بعد" in text,
-                "description": desc})
+                "easy_apply": "yes" if j.get("easyApplyUrl") else "?",
+                "remote": remote, "description": desc})
 
 out.sort(key=lambda x: -x["match_score"])
 json.dump(out, open("jobs_queue.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-print(f"QUEUED {len(out)} jobs -> jobs_queue.json")
+print("QUEUED %d fresh jobs -> jobs_queue.json" % len(out))
 for j in out[:8]:
-    print(f"  [{j['match_score']}] {j['title']} @ {j['company']} ({j['posted'][:10]})")
+    print("  [%s] %s @ %s (%s, %s)" % (j["match_score"], j["title"], j["company"], j["location"], j["posted"][:10]))
