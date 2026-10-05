@@ -12,7 +12,7 @@ ACTOR = "curious_coder~linkedin-jobs-scraper"
 MATCH = ["marketing", "digital", "community", "content", "brand", "performance",
          "social media", "growth", "crm", "b2b", "media", "partnership", "communications"]
 
-MENA = ["Egypt","United Arab Emirates","Saudi Arabia","Qatar","Kuwait","Oman","Bahrain","Jordan","Lebanon"]
+MENA = ["Egypt","United Arab Emirates","Saudi Arabia","Qatar","Kuwait","Oman","Bahrain","Jordan","Lebanon","Iraq","Yemen","Palestine","Libya","Morocco","Algeria","Tunisia","Sudan"]
 title = sys.argv[1] if len(sys.argv) > 1 else "Marketing Manager"
 mode = sys.argv[2] if len(sys.argv) > 2 else "mena"
 if mode == "mena":
