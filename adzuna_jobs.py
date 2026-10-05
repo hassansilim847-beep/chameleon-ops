@@ -24,7 +24,7 @@ def fetch(what, country, page=1):
         print("ERR", country, what, e); return []
 
 def main():
-    queue = json.load(open(QFILE, encoding="utf-8"))
+    queue = json.load(open(QFILE, encoding="utf-8")) if os.path.exists(QFILE) else []
     seen_urls = {(j.get("company") or "", j.get("title") or "") for j in queue}
     added = 0
     for i, (country, what) in enumerate([(c, w) for w in WHAT for c in COUNTRIES][:6]):
