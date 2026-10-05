@@ -4,12 +4,15 @@ on:
     - cron: '0 5 * * *'   # 07:00 Cairo (UTC+2, no DST)
   workflow_dispatch:
     inputs:
+      keyword:
+        description: 'search keyword'
+        default: 'Marketing Manager'
       mode:
         description: 'apify mode: mena | remote | country'
         default: 'mena'
       rows:
-        description: 'rows per run'
-        default: '20'
+        description: 'total rows (split across locations)'
+        default: '340'
 permissions:
   contents: write
 jobs:
@@ -17,14 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apify LinkedIn discovery
+      - name: Apify LinkedIn discovery (MENA, fresh 7d)
         continue-on-error: true
         env:
           APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
         run: |
           MODE="${{ github.event.inputs.mode || 'mena' }}"
-          ROWS="${{ github.event.inputs.rows || '20' }}"
-          python3 apify_jobs.py "Marketing Manager" "$MODE" "$ROWS"
+          ROWS="${{ github.event.inputs.rows || '340' }}"
+          KEYWORD="${{ github.event.inputs.keyword || 'Marketing Manager' }}"
+          python3 apify_jobs.py "$KEYWORD" "$MODE" "$ROWS"
       - name: Adzuna remote jobs
         run: python3 adzuna_jobs.py
       - name: Free APIs merge (Remotive/Jobicy)
@@ -36,8 +40,11 @@ jobs:
           q=json.load(open("jobs_queue.json", encoding="utf-8"))
           print(f"queue: {len(q)} jobs")
           open("summary.txt","w",encoding="utf-8").write(
-            "🦎 اكتشاف الصباح — طابور: %d وظيفة\n\n" % len(q) +
-            "\n".join("• %s @ %s [%s]" % (j.get("title"), j.get("company"), j.get("location"))
+            "🦎 اكتشاف الصباح — طابور: %d وظيفة
+
+" % len(q) +
+            "
+".join("• %s @ %s [%s]" % (j.get("title"), j.get("company"), j.get("location"))
                      for j in q[:10] if j.get("title")))
           EOF
           cat summary.txt
