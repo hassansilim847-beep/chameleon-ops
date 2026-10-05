@@ -15,13 +15,23 @@ MENA = ["Egypt","United Arab Emirates","Saudi Arabia","Qatar","Kuwait","Oman","B
 title = sys.argv[1] if len(sys.argv) > 1 else "Marketing Manager"
 mode = sys.argv[2] if len(sys.argv) > 2 else "mena"
 if mode == "mena":
-    LOCS = MENA
+    try:
+        rst = json.load(open("apify_rotation.json"))
+    except Exception:
+        rst = {"idx": 0}
+    i = rst["idx"] % len(MENA)
+    LOCS = [MENA[i], MENA[(i + 1) % len(MENA)]]
+    rst["idx"] = i + 2
+    try:
+        json.dump(rst, open("apify_rotation.json", "w"))
+    except Exception:
+        pass
 elif mode == "remote":
     LOCS = ["Remote"]
 else:
     LOCS = [mode]
 total = int(sys.argv[3]) if len(sys.argv) > 3 else 340
-rows = max(3, total // len(LOCS))
+rows = min(15, max(3, total // len(LOCS)))
 
 def api(url, data=None):
     req = urllib.request.Request(url, data=json.dumps(data).encode() if data else None,
