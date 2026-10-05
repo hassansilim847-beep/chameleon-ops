@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apify LinkedIn discovery
         env:
-          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_KEY }}
         run: |
           MODE="${{ github.event.inputs.mode || 'mena' }}"
           ROWS="${{ github.event.inputs.rows || '20' }}"
@@ -40,8 +40,8 @@ jobs:
           cat summary.txt
       - name: Notify bots (optional)
         env:
-          TELEGRAM_BOT_TOKEN_3: ${{ secrets.TELEGRAM_BOT_TOKEN_3 }}
-          TELEGRAM_BOT_TOKEN_4: ${{ secrets.TELEGRAM_BOT_TOKEN_4 }}
+          TELEGRAM_BOT_TOKEN_3: ${{ secrets.TELEGRAM_BOT_TOKEN_APPS }}
+          TELEGRAM_BOT_TOKEN_4: ${{ secrets.TELEGRAM_BOT_TOKEN_REPLIES }}
         run: python3 notify_bots.py apps "$(cat summary.txt)" || echo "notify skipped"
       - name: Commit queue
         run: |
