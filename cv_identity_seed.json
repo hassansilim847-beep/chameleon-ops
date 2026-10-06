@@ -1,0 +1,16 @@
+{
+  "name": "Hasan Abdul Raouf",
+  "phone": "01013821957",
+  "email": "hassansilim3@gmail.com",
+  "location": "Egypt",
+  "education": "Bachelor of Business Administration",
+  "languages": {
+    "arabic": "native",
+    "english": "professional",
+    "german": "professional"
+  },
+  "note": "الطبقة الثابتة — الموبايل والإيميل متأكدين، المؤهل واللغات لسه محتاجين القيم الحقيقية",
+  "full_name_ar": "حسن عبد الرؤوف سليم",
+  "full_name_en": "Hasan Abdul Raouf Selim",
+  "portfolio": "https://hasan-cv-wheat.vercel.app"
+}
