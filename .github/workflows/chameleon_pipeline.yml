@@ -25,6 +25,7 @@ jobs:
         env:
           APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
         run: |
+          if [ "${{ vars.APIFY_SKIP != 'true' }}" != "true" ]; then echo "apify skipped by Hassan (budget)"; exit 0; fi
           MODE="${{ github.event.inputs.mode || 'mena' }}"
           ROWS="${{ github.event.inputs.rows || '340' }}"
           KEYWORD="${{ github.event.inputs.keyword || 'Marketing Manager' }}"
